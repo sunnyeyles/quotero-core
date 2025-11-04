@@ -1,16 +1,40 @@
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
-import * as schema from "./schema.js";
+import * as schema from "./schema";
 
-const connectionString = process.env.DATABASE_URL;
+let cachedDb: ReturnType<typeof drizzle> | null = null;
 
-if (!connectionString) {
-  throw new Error("DATABASE_URL environment variable is not set");
+function createClient() {
+  const connectionString =
+    process.env.POSTGRES_URL ||
+    process.env.DATABASE_URL ||
+    process.env.POSTGRES_PRISMA_URL ||
+    (process.env.NODE_ENV === "development"
+      ? "postgresql://postgres:postgres@localhost:5432/quotero-core"
+      : null);
+
+  if (!connectionString) {
+    throw new Error(
+      "Database connection string is required. Please set POSTGRES_URL or DATABASE_URL environment variable."
+    );
+  }
+
+  // Disable prefetch as it is not supported for "Transaction" pool mode
+  // Vercel Postgres works best with connection pooling settings
+  const client = postgres(connectionString, {
+    prepare: false,
+    max: 10,
+  });
+
+  return drizzle(client, { schema });
 }
 
-// Disable prefetch as it is not supported for "Transaction" pool mode
-const client = postgres(connectionString, { prepare: false });
-export const db = drizzle(client, { schema });
+export function getDb() {
+  if (!cachedDb) {
+    cachedDb = createClient();
+  }
+  return cachedDb;
+}
 
-export type Database = typeof db;
-export * from "./schema.js";
+export type Database = ReturnType<typeof getDb>;
+export * from "./schema";

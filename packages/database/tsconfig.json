@@ -2,11 +2,11 @@
   "extends": "../../packages/typescript-config/base.json",
   "compilerOptions": {
     "outDir": "./dist",
-    "rootDir": "./src",
     "skipLibCheck": true,
-    "types": []
+    "types": ["node"],
+    "module": "esnext",
+    "moduleResolution": "bundler"
   },
-  "include": ["src/**/*"],
+  "include": ["src/**/*", "prisma/schema.prisma"],
   "exclude": ["node_modules", "dist"]
 }
-

@@ -1,0 +1,167 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum DocumentStatus {
+  pending
+  processing
+  completed
+  failed
+}
+
+enum TrainingJobStatus {
+  pending
+  processing
+  completed
+  failed
+}
+
+model Client {
+  id                  String   @id @default(uuid())
+  clerkUserId         String   @unique
+  name                String
+  slug                String   @unique
+  apiKey              String   @unique
+  monthlyUsageLimit   Int?
+  currentMonthlyUsage Int      @default(0)
+  isActive            Boolean  @default(true)
+  metadata            Json?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  chatbots     Chatbot[]
+  documents    Document[]
+  usageLogs    ApiUsageLog[]
+  trainingJobs TrainingJob[]
+}
+
+model Chatbot {
+  id                  String   @id @default(uuid())
+  clientId            String
+  name                String
+  slug                String
+  model               String   @default("gpt-4")
+  temperature         Int?
+  maxTokens           Int?
+  topK                Int?
+  similarityThreshold Int?
+  systemPrompt        String?
+  isActive            Boolean  @default(true)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  client       Client        @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  documents    Document[]
+  usageLogs    ApiUsageLog[]
+  trainingJobs TrainingJob[]
+
+  @@unique([clientId, slug])
+  @@index([clientId])
+}
+
+model Document {
+  id               String         @id @default(uuid())
+  clientId         String
+  chatbotId        String?
+  filename         String
+  originalFilename String
+  fileType         String
+  fileSize         Int
+  storageUrl       String
+  status           DocumentStatus @default(pending)
+  processedAt      DateTime?
+  errorMessage     String?
+  metadata         Json?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  client      Client              @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  chatbot     Chatbot?            @relation(fields: [chatbotId], references: [id], onDelete: SetNull)
+  chunks      DocumentChunk[]
+  embeddings  DocumentEmbedding[]
+  TrainingJob TrainingJob[]
+
+  @@index([clientId])
+  @@index([chatbotId])
+}
+
+model DocumentChunk {
+  id         String   @id @default(uuid())
+  documentId String
+  chunkIndex Int
+  content    String
+  startChar  Int?
+  endChar    Int?
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  document  Document           @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  embedding DocumentEmbedding?
+
+  @@unique([documentId, chunkIndex])
+  @@index([documentId])
+}
+
+model DocumentEmbedding {
+  id        String   @id @default(uuid())
+  chunkId   String   @unique
+  embedding Float[]
+  model     String   @default("text-embedding-3-small")
+  createdAt DateTime @default(now())
+
+  chunk      DocumentChunk @relation(fields: [chunkId], references: [id], onDelete: Cascade)
+  Document   Document?     @relation(fields: [documentId], references: [id])
+  documentId String?
+}
+
+model ApiUsageLog {
+  id               String   @id @default(uuid())
+  clientId         String
+  chatbotId        String?
+  endpoint         String
+  method           String
+  model            String
+  promptTokens     Int      @default(0)
+  completionTokens Int      @default(0)
+  totalTokens      Int      @default(0)
+  cost             Int?
+  userId           String?
+  sessionId        String?
+  metadata         Json?
+  createdAt        DateTime @default(now())
+
+  client  Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  chatbot Chatbot? @relation(fields: [chatbotId], references: [id], onDelete: SetNull)
+
+  @@index([clientId])
+  @@index([chatbotId])
+}
+
+model TrainingJob {
+  id           String            @id @default(uuid())
+  clientId     String
+  chatbotId    String
+  documentId   String?
+  status       TrainingJobStatus @default(pending)
+  progress     Int               @default(0)
+  jobType      String
+  errorMessage String?
+  metadata     Json?
+  startedAt    DateTime?
+  completedAt  DateTime?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  client   Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  chatbot  Chatbot   @relation(fields: [chatbotId], references: [id], onDelete: Cascade)
+  document Document? @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([clientId])
+  @@index([chatbotId])
+  @@index([documentId])
+}
