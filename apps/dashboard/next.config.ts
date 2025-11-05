@@ -1,7 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  // Externalize Prisma Client to prevent bundling issues
+  serverExternalPackages: ["@prisma/client", "@workspace/database"],
 };
 
 export default nextConfig;
